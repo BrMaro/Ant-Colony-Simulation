@@ -1,4 +1,3 @@
-from ast import And
 import pygame
 import os
 import math
@@ -6,7 +5,7 @@ import math
 WIDTH, HEIGHT = 1280, 720
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Ant Simulations")
-FPS = 60
+FPS = 120
 ant_speed = 2
 
 AQUA = (100, 200, 200)
@@ -14,77 +13,53 @@ BLACK = (0, 0, 0)
 GREY = (200, 200, 200)
 WHITE = (255, 255, 255)
 
+#   0 - image is looking to the right
+#  90 - image is looking up
+# 180 - image is looking to the left
+# 270 - image is looking down
+correction_angle = 90
 
 
-def antrotation(antx, anty):
-    rotationangle = 0
+
+
+def get_angle(centre_x,centre_y):
+    #Calculate angle of rotation between mouse pointer and ant
     mousex, mousey = pygame.mouse.get_pos()
-    if mousex < antx and mousey < anty:
-        rotationangle = math.degrees(math.atan(mousey / mousex))
-    if mousex < antx and mousey > anty:
-        rotationangle = 180 - math.degrees(math.atan(mousey / mousex))
-    if mousex > antx and mousey > anty:
-        rotationangle = 180 + math.degrees(math.atan(mousey / mousex))
-    if mousex > antx and mousey < anty:
-        rotationangle = 360 - math.degrees(math.atan(mousey / mousex))
-    print(mousex, mousey, rotationangle)
-    return rotationangle
+    dx, dy = mousex - centre_x, mousey - centre_y
+    angle = math.degrees(math.atan2(-dy, dx)) - correction_angle
+    return angle
 
 
+def draw(win, ant_position):
+    #bind image within a rectangle
+    ANT = pygame.transform.scale(pygame.image.load(os.path.join('ant.png')), (60, 60))
+    rect = ANT.get_rect()
+    center_x, center_y = ant_position  #should be relative to the entire window
+    angle = get_angle(center_x, center_y)
+    rotated_ant = pygame.transform.rotate(ANT, angle)
+    rotated_rect = rotated_ant.get_rect(center=ant_position)
 
-def ant_origin_rotations(antx, anty, image):
-    rotationangle = 0
-    mousex, mousey = pygame.mouse.get_pos()
+    win.fill(WHITE)
+    win.blit(rotated_ant, rotated_rect.topleft)
 
-    # Calculate the position with the rotated image size
-    rotated_image = pygame.transform.rotate(image, rotationangle)
-    x = antx - rotated_image.get_width() // 2
-    y = anty - rotated_image.get_height() // 2
-
-    # Calculate the angle from the mouse position to the image center
-    dx = mousex - antx
-    dy = mousey - anty
-    rotationangle = math.degrees(math.atan2(dy, dx))
-
-    print(mousex, mousey, rotationangle)
-    return rotationangle
-
-def antmovement(antx, anty):
-    mousex, mousey = pygame.mouse.get_pos()
-    if mousex < antx:
-        antx -= ant_speed
-    else:
-        antx += ant_speed
-
-    if mousey < anty:
-        anty -= ant_speed
-    else:
-        anty += ant_speed
-    return antx, anty
+    pygame.display.update()
 
 
 def main():
     clock = pygame.time.Clock()
-    rotation_angle = 0
     run = True
-    antx, anty = (WIDTH // 2, HEIGHT // 2)
+    start_pos = WIN.get_rect().center
     while run:
         clock.tick(FPS)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
 
-        WIN.fill(WHITE)
-        SHOWN_ANT = pygame.transform.rotate(pygame.transform.scale(pygame.image.load(os.path.join('ant.png')), (20, 20)),rotation_angle)
-        antx, anty = antmovement(antx, anty)
-        WIN.blit(SHOWN_ANT, (antx, anty))
-        rotation_angle = ant_origin_rotations(antx,anty,SHOWN_ANT)
-
+        draw(WIN,start_pos)
 
 
         pygame.display.update()
 
     pygame.quit()
-
 
 main()
