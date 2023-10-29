@@ -56,8 +56,6 @@ class Ant:
         # self.inventory = {}
         # self.color = ANT_COLOR
 
-    
-
     def sense_objects(self, objects):
         sensed_objects = []
         for obj in objects:
@@ -87,22 +85,39 @@ class Ant:
     #             self.velocity[1] = random_velocity[1]
     #             self.x += self.velocity[0]
     #             self.y += self.velocity[1]
-    def move_randomly_until_sensed(self,ants):
-        # Check if the mouse is within the sense radius
-        mouse_x, mouse_y = pygame.mouse.get_pos()
-        dx, dy = mouse_x - self.x, mouse_y - self.y
-        distance_to_mouse = math.hypot(dx, dy)
 
-        if distance_to_mouse <= self.sense_radius:
-            # Implement behavior for when the mouse is sensed
-            self.move_towards_target(ants)
-        else:
-            if not hasattr(self, "random_direction"):
-                # Initialize a random direction for random movement
-                self.random_direction = random.uniform(0, 2 * math.pi)
+    def move_towards_target(self, target, ants):
+        target_x, target_y = target
+        dx, dy = target_x - self.x, target_y - self.y
+        distance_to_target = math.hypot(dx, dy)
 
+        if distance_to_target <= self.sense_radius:
+            desired_velocity = [dx / distance_to_target, dy / distance_to_target]
+
+            desired_velocity[0] *= self.max_speed
+            desired_velocity[1] *= self.max_speed
+
+            # Calculate steering force
+            steering_force = [desired_velocity[0] - self.velocity[0], desired_velocity[1] - self.velocity[1]]
+
+            # Update velocity
+            self.velocity[0] += steering_force[0]
+            self.velocity[1] += steering_force[1]
+
+            self.avoid_collision(ants)
+
+            # Update position
+            self.x += self.velocity[0]
+            self.y += self.velocity[1]
+
+    def move_randomly(self, ants):
+
+        if random.random() < 0.1:
+
+            # Initialize a random direction for random movement
+            random_angle = random.uniform(0, 2 * math.pi) # math.pi uses radians input so take it as 180 degrees
             # Calculate random velocity based on the angle
-            random_velocity = [math.cos(self.random_direction), math.sin(self.random_direction)]
+            random_velocity = [math.cos(random_angle), math.sin(random_angle)]
 
             # Scale the random velocity to the ant's max speed
             random_velocity[0] *= self.max_speed
@@ -111,11 +126,19 @@ class Ant:
             # Update velocity and position for random movement
             self.velocity[0] = random_velocity[0]
             self.velocity[1] = random_velocity[1]
-            self.x += self.velocity[0]
-            self.y += self.velocity[1]
 
-            self.x = max(0, min(self.x, WIDTH - 20))
-            self.y = max(0, min(self.y, HEIGHT - 20))
+        self.x += self.velocity[0]
+        self.y += self.velocity[1]
+
+        # avoid colliding with other ants
+        self.avoid_collision(ants)
+
+        # maintain ants within the screen
+        self.x = max(0, min(self.x, WIDTH - 20))
+        self.y = max(0, min(self.y, HEIGHT - 20))
+
+
+
     def get_velocity(self):
         return self.velocity
 
@@ -135,40 +158,17 @@ class Ant:
                     self.velocity[0] -= avoidance_force[0]
                     self.velocity[1] -= avoidance_force[1]
 
-    def move_towards_target(self, target, ants):
-        target_x, target_y = target
-        dx, dy = target_x - self.x, target_y - self.y
-        distance_to_target = math.hypot(dx, dy)
-
-        if distance_to_target <= self.sense_radius:
-
-            desired_velocity = [dx / distance_to_target, dy / distance_to_target]
-
-            desired_velocity[0] *= self.max_speed
-            desired_velocity[1] *= self.max_speed
-
-            # Calculate steering force
-            steering_force = [desired_velocity[0] - self.velocity[0], desired_velocity[1] - self.velocity[1]]
-
-            # Update velocity
-            self.velocity[0] += steering_force[0]
-            self.velocity[1] += steering_force[1]
-
-            self.avoid_collision(ants)
-
-            # Update position
-            self.x += self.velocity[0]
-            self.y += self.velocity[1]
-
     def get_position(self):
         return self.x, self.y
-    def get_angle(self,target): # target is wht the ants are facing
-        # Calculate angle of rotation between mouse pointer and ant
+
+    def get_angle(self, target):  # target is what the ants are facing
+        # Calculate angle of rotation between target and ant
         target_x, target_y = target
         dx, dy = target_x - self.x, target_y - self.y
         angle = math.degrees(math.atan2(-dy, dx)) - correction_angle
         return angle
-    def draw_ant(self, win,target): # target is wht the ants are facing
+
+    def draw_ant(self, win, target):  # target is wht the ants are facing
         # bind image within a rectangle
         center_x, center_y = self.x, self.y
         angle = self.get_angle(target)
@@ -205,8 +205,8 @@ class Anthill:
     def check_for_food_surplus(self):
         return self.food_storage > len(self.ants)
 
-    def draw_anthill(self,win):
-        win.blit(ANTHILL,(self.x,self.y))
+    def draw_anthill(self, win):
+        win.blit(ANTHILL, (self.x, self.y))
 
 
 def generate_first_round_ants(number):
@@ -219,13 +219,13 @@ def generate_first_round_ants(number):
     return ants
 
 
-def draw(win, ants,anthill):
+def draw(win, ants, anthill):
     win.fill(GREY)
     anthill.draw_anthill(win)
     for ant in ants:
-        #ant.move_randomly_until_sensed(ants)
-        ant.move_towards_target(pygame.mouse.get_pos(),ants)
-        ant.draw_ant(win,pygame.mouse.get_pos())
+        ant.move_randomly(ants)
+        # ant.move_towards_target(pygame.mouse.get_pos(),ants)
+        ant.draw_ant(win, pygame.mouse.get_pos())
 
     pygame.display.update()
 
@@ -235,7 +235,7 @@ def main():
     run = True
     objects = []
     ants = []
-    anthill1 = Anthill(500,30,20,500,500)
+    anthill1 = Anthill(500, 30, 20, 500, 500)
     for new_ant in anthill1.spawn_ants(anthill1.initial_ants):
         ants.append(new_ant)
     print(len(ants))
@@ -246,11 +246,12 @@ def main():
             if event.type == pygame.QUIT:
                 run = False
 
-        draw(WIN, ants,anthill1)
+        draw(WIN, ants, anthill1)
 
         pygame.display.update()
 
     pygame.quit()
+
 
 if __name__ == "__main__":
     main()
