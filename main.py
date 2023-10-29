@@ -25,7 +25,7 @@ WHITE = (255, 255, 255)
 TURQUOISE = (64, 224, 208)
 EARTH = (163, 137, 104)
 
-ANT_SIZE = (10, 10)
+ANT_SIZE = (20, 20)
 ANT = pygame.transform.scale(pygame.image.load(os.path.join('ant.png')), ANT_SIZE)
 ANT_MAX_SPEED = .75
 
@@ -56,12 +56,7 @@ class Ant:
         # self.inventory = {}
         # self.color = ANT_COLOR
 
-    def get_angle(self):
-        # Calculate angle of rotation between mouse pointer and ant
-        mousex, mousey = pygame.mouse.get_pos()
-        dx, dy = mousex - self.x, mousey - self.y
-        angle = math.degrees(math.atan2(-dy, dx)) - correction_angle
-        return angle
+    
 
     def sense_objects(self, objects):
         sensed_objects = []
@@ -74,6 +69,53 @@ class Ant:
         else:
             return None
 
+    # def scavenge_mode(self,food):
+    #     if self.sense_objects(food) is None:
+    #         if random.random() < 0.2:  # Adjust the probability as needed
+    #             # Generate a random angle for random movement
+    #             random_angle = random.uniform(0, 2 * math.pi)
+    #
+    #             # Calculate random velocity based on the angle
+    #             random_velocity = [math.cos(random_angle), math.sin(random_angle)]
+    #
+    #             # Scale the random velocity to the ant's max speed
+    #             random_velocity[0] *= self.max_speed
+    #             random_velocity[1] *= self.max_speed
+    #
+    #             # Update velocity and position for random movement
+    #             self.velocity[0] = random_velocity[0]
+    #             self.velocity[1] = random_velocity[1]
+    #             self.x += self.velocity[0]
+    #             self.y += self.velocity[1]
+    def move_randomly_until_sensed(self,ants):
+        # Check if the mouse is within the sense radius
+        mouse_x, mouse_y = pygame.mouse.get_pos()
+        dx, dy = mouse_x - self.x, mouse_y - self.y
+        distance_to_mouse = math.hypot(dx, dy)
+
+        if distance_to_mouse <= self.sense_radius:
+            # Implement behavior for when the mouse is sensed
+            self.move_towards_target(ants)
+        else:
+            if not hasattr(self, "random_direction"):
+                # Initialize a random direction for random movement
+                self.random_direction = random.uniform(0, 2 * math.pi)
+
+            # Calculate random velocity based on the angle
+            random_velocity = [math.cos(self.random_direction), math.sin(self.random_direction)]
+
+            # Scale the random velocity to the ant's max speed
+            random_velocity[0] *= self.max_speed
+            random_velocity[1] *= self.max_speed
+
+            # Update velocity and position for random movement
+            self.velocity[0] = random_velocity[0]
+            self.velocity[1] = random_velocity[1]
+            self.x += self.velocity[0]
+            self.y += self.velocity[1]
+
+            self.x = max(0, min(self.x, WIDTH - 20))
+            self.y = max(0, min(self.y, HEIGHT - 20))
     def get_velocity(self):
         return self.velocity
 
@@ -93,13 +135,14 @@ class Ant:
                     self.velocity[0] -= avoidance_force[0]
                     self.velocity[1] -= avoidance_force[1]
 
-    def move_towards_mouse(self, ants):
-        target_x, target_y = pygame.mouse.get_pos()
+    def move_towards_target(self, target, ants):
+        target_x, target_y = target
         dx, dy = target_x - self.x, target_y - self.y
-        distance_to_mouse = math.hypot(dx, dy)
+        distance_to_target = math.hypot(dx, dy)
 
-        if distance_to_mouse <= self.sense_radius:
-            desired_velocity = [dx / distance_to_mouse, dy / distance_to_mouse]
+        if distance_to_target <= self.sense_radius:
+
+            desired_velocity = [dx / distance_to_target, dy / distance_to_target]
 
             desired_velocity[0] *= self.max_speed
             desired_velocity[1] *= self.max_speed
@@ -119,11 +162,16 @@ class Ant:
 
     def get_position(self):
         return self.x, self.y
-
-    def draw_ant(self, win):
+    def get_angle(self,target): # target is wht the ants are facing
+        # Calculate angle of rotation between mouse pointer and ant
+        target_x, target_y = target
+        dx, dy = target_x - self.x, target_y - self.y
+        angle = math.degrees(math.atan2(-dy, dx)) - correction_angle
+        return angle
+    def draw_ant(self, win,target): # target is wht the ants are facing
         # bind image within a rectangle
         center_x, center_y = self.x, self.y
-        angle = self.get_angle()
+        angle = self.get_angle(target)
         rotated_ant = pygame.transform.rotate(ANT, angle)
         rotated_rect = rotated_ant.get_rect(center=(center_x, center_y))
         win.blit(rotated_ant, rotated_rect.topleft)
@@ -156,6 +204,7 @@ class Anthill:
 
     def check_for_food_surplus(self):
         return self.food_storage > len(self.ants)
+
     def draw_anthill(self,win):
         win.blit(ANTHILL,(self.x,self.y))
 
@@ -174,8 +223,9 @@ def draw(win, ants,anthill):
     win.fill(GREY)
     anthill.draw_anthill(win)
     for ant in ants:
-        ant.move_towards_mouse(ants)
-        ant.draw_ant(win)
+        #ant.move_randomly_until_sensed(ants)
+        ant.move_towards_target(pygame.mouse.get_pos(),ants)
+        ant.draw_ant(win,pygame.mouse.get_pos())
 
     pygame.display.update()
 
@@ -188,7 +238,8 @@ def main():
     anthill1 = Anthill(500,30,20,500,500)
     for new_ant in anthill1.spawn_ants(anthill1.initial_ants):
         ants.append(new_ant)
-    # ants = generate_first_round_ants(1300)
+    print(len(ants))
+
     while run:
         clock.tick(FPS)
         for event in pygame.event.get():
@@ -201,5 +252,5 @@ def main():
 
     pygame.quit()
 
-
-main()
+if __name__ == "__main__":
+    main()
