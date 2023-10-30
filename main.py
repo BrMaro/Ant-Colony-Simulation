@@ -25,9 +25,9 @@ WHITE = (255, 255, 255)
 TURQUOISE = (64, 224, 208)
 EARTH = (163, 137, 104)
 
-ANT_SIZE = (20, 20)
+ANT_SIZE = (15, 15)
 ANT = pygame.transform.scale(pygame.image.load(os.path.join('ant.png')), ANT_SIZE)
-ANT_MAX_SPEED = .75
+ANT_MAX_SPEED = .25
 
 ANTHILL = pygame.image.load(os.path.join("earth.PNG"))
 # ANTHILL = pygame.draw.circle(WIN,BLACK,)
@@ -45,10 +45,10 @@ class Ant:
         self.x = x
         self.y = y
         self.type = "ant"
-        self.velocity = [random.uniform(-ANT_MAX_SPEED, ANT_MAX_SPEED), random.uniform(-ANT_MAX_SPEED, ANT_MAX_SPEED)]
+        self.velocity = [random.uniform(0, ANT_MAX_SPEED), random.uniform(0, ANT_MAX_SPEED)] #Velocity has both x and y values
         self.max_speed = ANT_MAX_SPEED
         self.sense_radius = 250
-
+        self.angle = 0
         # self.state = "exploring"/"delivery"/"sustenance"
         # self.colony = None
         # self.health = 100
@@ -86,6 +86,12 @@ class Ant:
     #             self.x += self.velocity[0]
     #             self.y += self.velocity[1]
 
+    def walk(self):
+        # Ensure the ant is always facing where it is moving
+        if self.velocity != [0, 0]:
+            angle = math.degrees(math.atan2(-self.velocity[1], self.velocity[0])) - correction_angle
+            self.angle = angle
+
     def move_towards_target(self, target, ants):
         target_x, target_y = target
         dx, dy = target_x - self.x, target_y - self.y
@@ -112,10 +118,9 @@ class Ant:
 
     def move_randomly(self, ants):
 
-        if random.random() < 0.1:
-
+        if random.random() < 0.005:
             # Initialize a random direction for random movement
-            random_angle = random.uniform(0, 2 * math.pi) # math.pi uses radians input so take it as 180 degrees
+            random_angle = random.uniform(0, 2 * math.pi)  # math.pi uses radians input so take it as 180 degrees
             # Calculate random velocity based on the angle
             random_velocity = [math.cos(random_angle), math.sin(random_angle)]
 
@@ -130,14 +135,15 @@ class Ant:
         self.x += self.velocity[0]
         self.y += self.velocity[1]
 
+        angle = math.degrees(math.atan2(-self.velocity[1], self.velocity[0])) - correction_angle
+        self.angle = angle
+
         # avoid colliding with other ants
         self.avoid_collision(ants)
 
         # maintain ants within the screen
         self.x = max(0, min(self.x, WIDTH - 20))
         self.y = max(0, min(self.y, HEIGHT - 20))
-
-
 
     def get_velocity(self):
         return self.velocity
@@ -161,17 +167,20 @@ class Ant:
     def get_position(self):
         return self.x, self.y
 
-    def get_angle(self, target):  # target is what the ants are facing
+    def get_angle(self):
+        return self.angle
+
+    def face_target(self, target):  # target is what the ants are facing
         # Calculate angle of rotation between target and ant
         target_x, target_y = target
         dx, dy = target_x - self.x, target_y - self.y
         angle = math.degrees(math.atan2(-dy, dx)) - correction_angle
         return angle
 
-    def draw_ant(self, win, target):  # target is wht the ants are facing
+    def draw_ant(self, win):  # target is wht the ants are facing
         # bind image within a rectangle
         center_x, center_y = self.x, self.y
-        angle = self.get_angle(target)
+        angle = self.angle
         rotated_ant = pygame.transform.rotate(ANT, angle)
         rotated_rect = rotated_ant.get_rect(center=(center_x, center_y))
         win.blit(rotated_ant, rotated_rect.topleft)
@@ -208,24 +217,13 @@ class Anthill:
     def draw_anthill(self, win):
         win.blit(ANTHILL, (self.x, self.y))
 
-
-def generate_first_round_ants(number):
-    ants = []
-    for _ in range(number):
-        x = random.randint(0, WIDTH)  # Generate a random x-coordinate between 0 and 1000
-        y = random.randint(0, HEIGHT)  # Generate a random y-coordinate between 0 and 700
-        new_ant = Ant(x, y)  # Create a new ant at the random location
-        ants.append(new_ant)
-    return ants
-
-
 def draw(win, ants, anthill):
     win.fill(GREY)
     anthill.draw_anthill(win)
     for ant in ants:
         ant.move_randomly(ants)
         # ant.move_towards_target(pygame.mouse.get_pos(),ants)
-        ant.draw_ant(win, pygame.mouse.get_pos())
+        ant.draw_ant(win)
 
     pygame.display.update()
 
@@ -235,10 +233,11 @@ def main():
     run = True
     objects = []
     ants = []
-    anthill1 = Anthill(500, 30, 20, 500, 500)
+    anthill1 = Anthill(500, 30, 1, 500, 500)
     for new_ant in anthill1.spawn_ants(anthill1.initial_ants):
         ants.append(new_ant)
-    print(len(ants))
+
+    #print(len(ants))
 
     while run:
         clock.tick(FPS)
