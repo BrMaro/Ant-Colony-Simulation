@@ -26,7 +26,7 @@ TURQUOISE = (64, 224, 208)
 
 ANT_SIZE = (15, 15)
 ANT = pygame.transform.scale(pygame.image.load(os.path.join('ant.png')), ANT_SIZE)
-ANT_MAX_SPEED = .1
+ANT_MAX_SPEED = 1
 
 EARTH = pygame.transform.scale(pygame.image.load(os.path.join("dirt.bmp")),(WIDTH,HEIGHT))
 
@@ -41,11 +41,13 @@ correction_angle = 90
 
 
 class Ant:
-    def __init__(self, x, y):
+    def __init__(self,ant_id, x, y):
+        self.ant_id=ant_id
         self.x = x
         self.y = y
         self.type = "ant"
-        self.velocity = [random.uniform(-ANT_MAX_SPEED, ANT_MAX_SPEED), random.uniform(-ANT_MAX_SPEED, ANT_MAX_SPEED)] # Velocity has both x and y values
+        self.velocity = [random.uniform(-ANT_MAX_SPEED, ANT_MAX_SPEED), random.uniform(-ANT_MAX_SPEED, ANT_MAX_SPEED)]
+        self.initial_velocity = self.velocity
         self.max_speed = ANT_MAX_SPEED
         self.sense_radius = 250
         self.angle = 0
@@ -67,24 +69,6 @@ class Ant:
         else:
             return None
 
-    def scavenge_mode(self,food):
-        if self.sense_objects(food) is None:
-            if random.random() < 0.2:  # Chance of direction change
-                # Generate a random angle for random movement
-                random_angle = random.uniform(0, 2 * math.pi)
-
-                # Calculate random velocity based on the angle
-                random_velocity = [math.cos(random_angle), math.sin(random_angle)]
-
-                # Scale the random velocity to the ant's max speed
-                random_velocity[0] *= self.max_speed
-                random_velocity[1] *= self.max_speed
-
-                # Update velocity and position for random movement
-                self.velocity[0] = random_velocity[0]
-                self.velocity[1] = random_velocity[1]
-                self.x += self.velocity[0]
-                self.y += self.velocity[1]
 
     def move_towards_target(self, target, ants):
         target_x, target_y = target
@@ -112,17 +96,15 @@ class Ant:
 
 
     def move_randomly(self, ants):
-        # change direction after a random time interval
+        # 1% chance of direction change every frame
         if random.random() < 0.01:
-            # Initialize a random direction for random movement
-            random_angle = random.uniform(0, 2 * math.pi)  # math.pi uses radians input so take it as 180 degrees
-            # Calculate random velocity based on the angle
+            random_angle = random.uniform(-math.pi / 2, math.pi / 2)  # math.pi uses radians input so take it as 180 degrees
             random_velocity = [math.sin(random_angle), math.cos(random_angle)]
 
             # Scale the random velocity to the ant's max speed
             random_velocity[0] *= self.max_speed
             random_velocity[1] *= self.max_speed
-            print(random_velocity)
+            # print(random_velocity)
             # Update velocity and position for random movement
             self.velocity[0] = random_velocity[0]
             self.velocity[1] = random_velocity[1]
@@ -133,12 +115,11 @@ class Ant:
             self.velocity[0] = -self.velocity[0] + random.uniform(0.1, 0.8)
             self.velocity[1] = -self.velocity[1] + random.uniform(0.1, 0.8)
 
-           # print("reached screen")
 
         self.x += self.velocity[0]
         self.y += self.velocity[1]
 
-        # calculate angle it should face
+        # calculate angle it should face. Make it face where it turns to
         angle = math.degrees(math.atan2(-self.velocity[1], self.velocity[0])) - correction_angle
         self.angle = angle
 
@@ -209,12 +190,12 @@ class Anthill:
 
     def spawn_ants(self, num_ants):
         if len(self.ants) + num_ants <= self.max_ants:
-            for _ in range(num_ants):
+            for ant_id in range(num_ants):
 
                 rand_x = random.randint(self.x - self.spawn_radius, self.x + self.spawn_radius)
                 rand_y = random.randint(self.y - self.spawn_radius, self.y + self.spawn_radius)
 
-                new_ant = Ant(rand_x, rand_y)
+                new_ant = Ant(ant_id,rand_x, rand_y)
                 self.ants.append(new_ant)
                 yield new_ant
 
@@ -263,7 +244,7 @@ def main():
     ants = []
     max_ants=500
     initial_food=30
-    initial_ants=1
+    initial_ants=100
     anthill_x, anthill_y = 500,500
     anthill1 = Anthill(max_ants,initial_food , initial_ants, anthill_x, anthill_y)
     for new_ant in anthill1.spawn_ants(anthill1.initial_ants):
