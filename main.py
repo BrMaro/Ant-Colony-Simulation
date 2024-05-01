@@ -24,7 +24,7 @@ GREY = (128, 128, 128)
 WHITE = (255, 255, 255)
 TURQUOISE = (64, 224, 208)
 
-ANT_SIZE = (15, 15)
+ANT_SIZE = (5, 5)
 ANT = pygame.transform.scale(pygame.image.load(os.path.join('ant.png')), ANT_SIZE)
 ANT_MAX_SPEED = 1
 
@@ -98,13 +98,17 @@ class Ant:
     def move_randomly(self, ants):
         # 1% chance of direction change every frame
         if random.random() < 0.01:
-            random_angle = random.uniform(-math.pi / 2, math.pi / 2)  # math.pi uses radians input so take it as 180 degrees
-            random_velocity = [math.sin(random_angle), math.cos(random_angle)]
+            current_angle = math.atan2(-self.velocity[1], self.velocity[0])  # Current angle in radians
+            min_angle = current_angle - math.pi / 2  # 90 degrees turn to the left
+            max_angle = current_angle + math.pi / 2  # 90 degrees turn to the right
+            random_angle = random.uniform(min_angle, max_angle)
+
+            random_velocity = [math.cos(random_angle), -math.sin(random_angle)]  # Reverse the sin component
 
             # Scale the random velocity to the ant's max speed
             random_velocity[0] *= self.max_speed
             random_velocity[1] *= self.max_speed
-            # print(random_velocity)
+
             # Update velocity and position for random movement
             self.velocity[0] = random_velocity[0]
             self.velocity[1] = random_velocity[1]
@@ -116,8 +120,10 @@ class Ant:
             self.velocity[1] = -self.velocity[1] + random.uniform(0.1, 0.8)
 
 
-        self.x += self.velocity[0]
-        self.y += self.velocity[1]
+        # self.x += self.velocity[0]
+        # self.y += self.velocity[1]
+        self.x += max(min(self.velocity[0], ANT_MAX_SPEED), -ANT_MAX_SPEED)
+        self.y += max(min(self.velocity[1], ANT_MAX_SPEED), -ANT_MAX_SPEED)
 
         # calculate angle it should face. Make it face where it turns to
         angle = math.degrees(math.atan2(-self.velocity[1], self.velocity[0])) - correction_angle
@@ -206,7 +212,25 @@ class Anthill:
         return self.food_storage > len(self.ants)
 
     def draw_anthill(self, win):
-        win.blit(ANTHILL, (self.x, self.y))
+        # win.blit(ANTHILL, (self.x, self.y))
+
+        BROWN = (139, 69, 19)
+        DARK_BROWN = (101, 67, 33)
+
+        # Set center coordinates of the anthill
+        center_x, center_y = WIDTH // 2, HEIGHT // 2
+
+        # Define radii for the circles
+        outer_radius = 50
+        inner_radius = 15
+
+        # Set thickness for the circles
+        outer_thickness = 20
+        inner_thickness = 10
+        pygame.draw.circle(win, BROWN, (self.x, self.y), outer_radius, outer_thickness)
+
+        # Draw inner circle
+        pygame.draw.circle(win, DARK_BROWN, (self.x, self.y), inner_radius, inner_thickness)
 
 
 class Food:
@@ -228,7 +252,8 @@ class Food:
 
 
 def draw(win, ants, anthill):
-    win.blit(EARTH,(0,0))
+    # win.blit(EARTH,(0,0))
+    win.fill(WHITE)
     anthill.draw_anthill(win)
     for ant in ants:
         ant.move_randomly(ants)
