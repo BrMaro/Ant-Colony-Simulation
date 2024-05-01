@@ -3,10 +3,10 @@ import os
 import math
 import random
 
-WIDTH, HEIGHT = 1800, 960
+WIDTH, HEIGHT = 1600, 900
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Ant Colony Simulations")
-FPS = 120
+FPS = 30
 
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
@@ -23,16 +23,16 @@ BLACK = (0, 0, 0)
 GREY = (128, 128, 128)
 WHITE = (255, 255, 255)
 TURQUOISE = (64, 224, 208)
-EARTH = (163, 137, 104)
 
 ANT_SIZE = (15, 15)
 ANT = pygame.transform.scale(pygame.image.load(os.path.join('ant.png')), ANT_SIZE)
-ANT_MAX_SPEED = .25
+ANT_MAX_SPEED = .1
 
-ANTHILL = pygame.image.load(os.path.join("earth.PNG"))
-# ANTHILL = pygame.draw.circle(WIN,BLACK,)
+EARTH = pygame.transform.scale(pygame.image.load(os.path.join("dirt.bmp")),(WIDTH,HEIGHT))
 
+ANTHILL = pygame.image.load(os.path.join("anthill.bmp"))
 
+# correct angle orrientation when an ant faces an object
 #   0 - image is looking to the right
 #  90 - image is looking up
 # 180 - image is looking to the left
@@ -45,7 +45,7 @@ class Ant:
         self.x = x
         self.y = y
         self.type = "ant"
-        self.velocity = [random.uniform(0, ANT_MAX_SPEED), random.uniform(0, ANT_MAX_SPEED)] #Velocity has both x and y values
+        self.velocity = [random.uniform(-ANT_MAX_SPEED, ANT_MAX_SPEED), random.uniform(-ANT_MAX_SPEED, ANT_MAX_SPEED)] # Velocity has both x and y values
         self.max_speed = ANT_MAX_SPEED
         self.sense_radius = 250
         self.angle = 0
@@ -67,30 +67,24 @@ class Ant:
         else:
             return None
 
-    # def scavenge_mode(self,food):
-    #     if self.sense_objects(food) is None:
-    #         if random.random() < 0.2:  # Adjust the probability as needed
-    #             # Generate a random angle for random movement
-    #             random_angle = random.uniform(0, 2 * math.pi)
-    #
-    #             # Calculate random velocity based on the angle
-    #             random_velocity = [math.cos(random_angle), math.sin(random_angle)]
-    #
-    #             # Scale the random velocity to the ant's max speed
-    #             random_velocity[0] *= self.max_speed
-    #             random_velocity[1] *= self.max_speed
-    #
-    #             # Update velocity and position for random movement
-    #             self.velocity[0] = random_velocity[0]
-    #             self.velocity[1] = random_velocity[1]
-    #             self.x += self.velocity[0]
-    #             self.y += self.velocity[1]
+    def scavenge_mode(self,food):
+        if self.sense_objects(food) is None:
+            if random.random() < 0.2:  # Chance of direction change
+                # Generate a random angle for random movement
+                random_angle = random.uniform(0, 2 * math.pi)
 
-    def walk(self):
-        # Ensure the ant is always facing where it is moving
-        if self.velocity != [0, 0]:
-            angle = math.degrees(math.atan2(-self.velocity[1], self.velocity[0])) - correction_angle
-            self.angle = angle
+                # Calculate random velocity based on the angle
+                random_velocity = [math.cos(random_angle), math.sin(random_angle)]
+
+                # Scale the random velocity to the ant's max speed
+                random_velocity[0] *= self.max_speed
+                random_velocity[1] *= self.max_speed
+
+                # Update velocity and position for random movement
+                self.velocity[0] = random_velocity[0]
+                self.velocity[1] = random_velocity[1]
+                self.x += self.velocity[0]
+                self.y += self.velocity[1]
 
     def move_towards_target(self, target, ants):
         target_x, target_y = target
@@ -116,37 +110,50 @@ class Ant:
             self.x += self.velocity[0]
             self.y += self.velocity[1]
 
-    def move_randomly(self, ants):
 
-        if random.random() < 0.005:
+    def move_randomly(self, ants):
+        # change direction after a random time interval
+        if random.random() < 0.01:
             # Initialize a random direction for random movement
             random_angle = random.uniform(0, 2 * math.pi)  # math.pi uses radians input so take it as 180 degrees
             # Calculate random velocity based on the angle
-            random_velocity = [math.cos(random_angle), math.sin(random_angle)]
+            random_velocity = [math.sin(random_angle), math.cos(random_angle)]
 
             # Scale the random velocity to the ant's max speed
             random_velocity[0] *= self.max_speed
             random_velocity[1] *= self.max_speed
-
+            print(random_velocity)
             # Update velocity and position for random movement
             self.velocity[0] = random_velocity[0]
             self.velocity[1] = random_velocity[1]
 
+
+        #change direction when reaching screen boundaries
+        if self.x >= WIDTH - 10 or self.x <= 10 or self.y >= HEIGHT-10 or self.y <= 10:
+            self.velocity[0] = -self.velocity[0] + random.uniform(0.1, 0.8)
+            self.velocity[1] = -self.velocity[1] + random.uniform(0.1, 0.8)
+
+           # print("reached screen")
+
         self.x += self.velocity[0]
         self.y += self.velocity[1]
 
+        # calculate angle it should face
         angle = math.degrees(math.atan2(-self.velocity[1], self.velocity[0])) - correction_angle
         self.angle = angle
+
 
         # avoid colliding with other ants
         self.avoid_collision(ants)
 
         # maintain ants within the screen
-        self.x = max(0, min(self.x, WIDTH - 20))
-        self.y = max(0, min(self.y, HEIGHT - 20))
+        self.x = max(0, min(self.x, WIDTH - 10))
+        self.y = max(0, min(self.y, HEIGHT - 10))
+
 
     def get_velocity(self):
         return self.velocity
+
 
     def avoid_collision(self, ants):
         for ant in ants:
@@ -156,7 +163,6 @@ class Ant:
                 distance = math.hypot(dx, dy)
 
                 if distance < ANT_SIZE[0]:  # Adjust this value as needed
-                    # There's a potential collision, so we adjust the ant's velocity
                     avoidance_force = [dx / distance, dy / distance]
                     avoidance_force[0] *= self.max_speed
                     avoidance_force[1] *= self.max_speed
@@ -176,6 +182,9 @@ class Ant:
         dx, dy = target_x - self.x, target_y - self.y
         angle = math.degrees(math.atan2(-dy, dx)) - correction_angle
         return angle
+
+    def sense_food(self):
+        pass
 
     def draw_ant(self, win):  # target is wht the ants are facing
         # bind image within a rectangle
@@ -201,6 +210,7 @@ class Anthill:
     def spawn_ants(self, num_ants):
         if len(self.ants) + num_ants <= self.max_ants:
             for _ in range(num_ants):
+
                 rand_x = random.randint(self.x - self.spawn_radius, self.x + self.spawn_radius)
                 rand_y = random.randint(self.y - self.spawn_radius, self.y + self.spawn_radius)
 
@@ -217,12 +227,30 @@ class Anthill:
     def draw_anthill(self, win):
         win.blit(ANTHILL, (self.x, self.y))
 
+
+class Food:
+    def __init__(self,x,y,quantity):
+        self.x = x
+        self.y = y
+        self.quantity = quantity
+
+    def get_position(self):
+        return self.x, self.y
+
+    def get_quantity(self):
+        return self.quantity
+
+    def food_collected(self, amount):
+        self.quantity = max(0, self.quantity - amount)
+
+
+
+
 def draw(win, ants, anthill):
-    win.fill(GREY)
+    win.blit(EARTH,(0,0))
     anthill.draw_anthill(win)
     for ant in ants:
         ant.move_randomly(ants)
-        # ant.move_towards_target(pygame.mouse.get_pos(),ants)
         ant.draw_ant(win)
 
     pygame.display.update()
@@ -233,11 +261,14 @@ def main():
     run = True
     objects = []
     ants = []
-    anthill1 = Anthill(500, 30, 1, 500, 500)
+    max_ants=500
+    initial_food=30
+    initial_ants=1
+    anthill_x, anthill_y = 500,500
+    anthill1 = Anthill(max_ants,initial_food , initial_ants, anthill_x, anthill_y)
     for new_ant in anthill1.spawn_ants(anthill1.initial_ants):
         ants.append(new_ant)
-
-    #print(len(ants))
+        objects.append(new_ant)
 
     while run:
         clock.tick(FPS)
