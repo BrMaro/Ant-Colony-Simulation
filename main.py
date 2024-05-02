@@ -58,17 +58,19 @@ class Ant:
         # self.inventory = {}
         # self.color = ANT_COLOR
 
-    def sense_objects(self, objects):
+    def sense_objects_and_react(self, objects,ants):
         sensed_objects = []
         for obj in objects:
             distance_to_obj = math.hypot(obj.x - self.x, obj.y - self.y)
             if distance_to_obj <= self.sense_radius:
                 sensed_objects.append(obj)
         if sensed_objects:
-            return [obj.type for obj in sensed_objects]
+            for sensed_obj in sensed_objects:
+                if isinstance(sensed_obj,Food):
+                    self.move_towards_target((sensed_obj.x,sensed_obj.y),ants)
+                    print(f"Food found by {self.ant_id}")
         else:
             return None
-
 
     def move_towards_target(self, target, ants):
         target_x, target_y = target
@@ -81,7 +83,7 @@ class Ant:
             desired_velocity[0] *= self.max_speed
             desired_velocity[1] *= self.max_speed
 
-            # Calculate steering force
+            # steering force for moving towards target
             steering_force = [desired_velocity[0] - self.velocity[0], desired_velocity[1] - self.velocity[1]]
 
             # Update velocity
@@ -93,7 +95,6 @@ class Ant:
             # Update position
             self.x += self.velocity[0]
             self.y += self.velocity[1]
-
 
     def move_randomly(self, ants):
         # 1% chance of direction change every frame
@@ -137,10 +138,8 @@ class Ant:
         self.x = max(0, min(self.x, WIDTH - 10))
         self.y = max(0, min(self.y, HEIGHT - 10))
 
-
     def get_velocity(self):
         return self.velocity
-
 
     def avoid_collision(self, ants):
         for ant in ants:
@@ -248,15 +247,36 @@ class Food:
     def food_collected(self, amount):
         self.quantity = max(0, self.quantity - amount)
 
+    def draw_food(self,win):
+        colours = [RED,GREEN]
+        cluster_size = self.quantity//10
+
+        # Calculate angle increment for distributing circles evenly
+        angle_increment = 2 * math.pi / cluster_size
+
+        for i in range(cluster_size):
+            colour = colours[i%len(colours)]
+            angle = i * angle_increment
+
+            circle_radius = 10
+
+            circle_x = self.x + int(circle_radius * math.cos(angle))
+            circle_y = self.y + int(circle_radius * math.sin(angle))
+
+            pygame.draw.circle(win, colour, (circle_x, circle_y), circle_radius)
 
 
 
-def draw(win, ants, anthill):
+
+def draw(win, ants, anthill,food,objects):
     # win.blit(EARTH,(0,0))
     win.fill(WHITE)
     anthill.draw_anthill(win)
+    food.draw_food(win)
     for ant in ants:
         ant.move_randomly(ants)
+        ant.sense_objects_and_react(objects,ants)
+
         ant.draw_ant(win)
 
     pygame.display.update()
@@ -271,7 +291,10 @@ def main():
     initial_food=30
     initial_ants=100
     anthill_x, anthill_y = 500,500
+    food = Food(1500,800,100)
     anthill1 = Anthill(max_ants,initial_food , initial_ants, anthill_x, anthill_y)
+
+    objects.append(food)
     for new_ant in anthill1.spawn_ants(anthill1.initial_ants):
         ants.append(new_ant)
         objects.append(new_ant)
@@ -282,7 +305,7 @@ def main():
             if event.type == pygame.QUIT:
                 run = False
 
-        draw(WIN, ants, anthill1)
+        draw(WIN, ants, anthill1,food,objects)
 
         pygame.display.update()
 
