@@ -51,11 +51,12 @@ class Ant:
         self.max_speed = ANT_MAX_SPEED
         self.sense_radius = 250
         self.angle = 0
+        self.inventory = {}
+        self.health = 100
+
         # self.state = "exploring"/"delivery"/"sustenance"
         # self.colony = None
-        # self.health = 100
         # self.age = 0
-        # self.inventory = {}
         # self.color = ANT_COLOR
 
     def sense_objects_and_react(self, objects,ants):
@@ -69,8 +70,19 @@ class Ant:
                 if isinstance(sensed_obj,Food):
                     self.move_towards_target((sensed_obj.x,sensed_obj.y),ants)
                     print(f"Food found by {self.ant_id}")
+                    self.collect_food(sensed_obj)
+
         else:
             return None
+
+    def collect_food(self,food_object):
+        if isinstance(food_object,Food):
+            if food_object in self.inventory:
+                self.inventory[food_object] += 1
+            else:
+                self.inventory[food_object] = 1
+
+            food_object.food_collected(1)
 
     def move_towards_target(self, target, ants):
         target_x, target_y = target
