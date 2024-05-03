@@ -28,7 +28,7 @@ TURQUOISE = (64, 224, 208)
 ANT_SIZE = (5, 5)
 ANT = pygame.transform.scale(pygame.image.load(os.path.join('ant.png')), ANT_SIZE)
 ANT_MAX_SPEED = 1
-PHEROMONE_DECAY_RATE = 0.5
+PHEROMONE_DECAY_RATE = 0.999999
 CELL_SIZE = 5
 
 EARTH = pygame.transform.scale(pygame.image.load(os.path.join("dirt.bmp")), (WIDTH, HEIGHT))
@@ -102,7 +102,6 @@ class Ant:
             if self.memory:
                 # self.memory = list(dict.fromkeys(self.memory))
                 next_cell = self.memory.pop()
-                print(self.memory)
                 next_cell_coordinates = (next_cell[0]*CELL_SIZE,next_cell[1]*CELL_SIZE)
 
                 self.move_towards_target(next_cell_coordinates, ants)
@@ -308,7 +307,7 @@ class PheromoneGrid:
         self.height = height
         self.grid = [[0 for _ in range(height)] for _ in range(width)]
         self.drawn_cells = []
-        self.pheromone_threshold = 15
+        self.pheromone_threshold = 5
 
     def update_pheromones(self, x, y, amount):
         self.grid[x][y] += amount
@@ -316,8 +315,12 @@ class PheromoneGrid:
             self.drawn_cells.append((x, y))
 
     def decay_pheromones(self, decay_rate):
-        for cell_coordinate in self.drawn_cells:
-            self.grid[cell_coordinate[0]][cell_coordinate[1]] *= decay_rate
+        for i, cell_coordinates in enumerate(self.drawn_cells):
+            x, y = cell_coordinates
+            self.grid[x][y] *= decay_rate
+            if self.grid[x][y] <= self.pheromone_threshold:
+                del self.drawn_cells[i]
+
 
     def draw_grid(self, win):
         for cell_coordinates in self.drawn_cells:
