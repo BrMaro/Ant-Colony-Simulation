@@ -25,10 +25,11 @@ GREY = (128, 128, 128)
 WHITE = (255, 255, 255)
 TURQUOISE = (64, 224, 208)
 
-ANT_SIZE = (5, 5)
+ANT_SIZE = (4, 4)
 ANT = pygame.transform.scale(pygame.image.load(os.path.join('ant.png')), ANT_SIZE)
 ANT_MAX_SPEED = 1
-PHEROMONE_DECAY_RATE = 0.999999
+RED_PHEROMONE_DECAY_RATE = 0.999
+# BLUE_PHEROMONE_DECAY_RATE
 CELL_SIZE = 5
 
 EARTH = pygame.transform.scale(pygame.image.load(os.path.join("dirt.bmp")), (WIDTH, HEIGHT))
@@ -56,6 +57,7 @@ class Ant:
         self.inventory = []
         self.memory = []
         self.health = 100
+        self.carrying_food = False
         self.state = "" #     exploring"/"delivery/"approach food
         # self.colony = None
         # self.age = 0
@@ -84,19 +86,19 @@ class Ant:
         if isinstance(food_object, Food):
             if not self.inventory:
                 self.inventory.append(food_object)
+                self.carrying_food = True
                 food_object.food_collected(1)
 
     def go_home(self, pheromone_grid, anthill, ants):
         self.state = "delivering"
-        print("delivering")
 
         anthill_x, anthill_y = anthill.x,anthill.y
         distance_to_anthill = math.hypot(self.x - anthill_x, self.y - anthill_y)
 
-        if distance_to_anthill <= 20:
+        if distance_to_anthill <= 40:
             self.velocity = [0, 0]
             # self.drop_food
-        elif distance_to_anthill <= 100:
+        elif distance_to_anthill <= 130:
             self.move_towards_target((anthill_x,anthill_y), ants)
         else:
             if self.memory:
@@ -198,12 +200,6 @@ class Ant:
                     self.velocity[0] -= avoidance_force[0]
                     self.velocity[1] -= avoidance_force[1]
 
-    def get_position(self):
-        return self.x, self.y
-
-    def get_angle(self):
-        return self.angle
-
     def face_target(self, target):  # target is what the ants are facing
         # Calculate angle of rotation between target and ant
         target_x, target_y = target
@@ -218,6 +214,13 @@ class Ant:
         rotated_ant = pygame.transform.rotate(ANT, angle)
         rotated_rect = rotated_ant.get_rect(center=(center_x, center_y))
         win.blit(rotated_ant, rotated_rect.topleft)
+
+        if self.carrying_food:
+            circle_radius = 5  # Adjust size as needed
+            offset_x = circle_radius * math.cos(math.radians(angle))
+            offset_y = -circle_radius * math.sin(math.radians(angle))
+            carrying_food_pos = (int(center_x + offset_x), int(center_y + offset_y))
+            pygame.draw.circle(win, GREEN, carrying_food_pos, circle_radius)
 
 
 class Anthill:
@@ -272,6 +275,8 @@ class Food:
         self.x = x
         self.y = y
         self.quantity = quantity
+        self.offsets = [(random.randint(-5, 5), random.randint(-5, 5)) for _ in range(quantity // 10)]
+
 
     def get_position(self):
         return self.x, self.y
@@ -283,22 +288,22 @@ class Food:
         self.quantity = max(0, self.quantity - amount)
 
     def draw_food(self, win):
-        colours = [RED, GREEN]
-        cluster_size = self.quantity // 10
+        # Calculate the size of the large circle based on the quantity of food
+        large_circle_radius = self.quantity
 
-        # Calculate angle increment for distributing circles evenly
-        angle_increment = 2 * math.pi / cluster_size
+        # Draw the large circle
+        pygame.draw.circle(win, GREEN, (self.x, self.y), large_circle_radius)
 
-        for i in range(cluster_size):
-            colour = colours[i % len(colours)]
-            angle = i * angle_increment
-
+        # Draw individual circles for each unit of food
+        for i in range(self.quantity):
+            # Calculate the position of each individual food unit circle
+            angle = i * (2 * math.pi / self.quantity)
             circle_radius = 10
+            circle_x = self.x + int(large_circle_radius * math.cos(angle))
+            circle_y = self.y + int(large_circle_radius * math.sin(angle))
 
-            circle_x = self.x + int(circle_radius * math.cos(angle))
-            circle_y = self.y + int(circle_radius * math.sin(angle))
-
-            pygame.draw.circle(win, colour, (circle_x, circle_y), circle_radius)
+            # Draw the individual food unit circle
+            pygame.draw.circle(win, RED, (circle_x, circle_y), circle_radius)
 
 
 class PheromoneGrid:
@@ -321,13 +326,23 @@ class PheromoneGrid:
             if self.grid[x][y] <= self.pheromone_threshold:
                 del self.drawn_cells[i]
 
-
     def draw_grid(self, win):
         for cell_coordinates in self.drawn_cells:
-            pheromone_level = self.grid[cell_coordinates[0]][cell_coordinates[1]]
-            colour = pygame.Color(255, 0, 0, min(round(pheromone_level), 255))
-            pygame.draw.rect(win, colour,
-                             (cell_coordinates[0] * CELL_SIZE, cell_coordinates[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE))
+            x, y = cell_coordinates
+            pheromone_level = self.grid[x][y]
+            color = pygame.Color(255, 0, 0, min(round(pheromone_level), 255))
+
+            # Calculate circle radius based on pheromone level
+            radius = int(CELL_SIZE / 2 * pheromone_level / self.pheromone_threshold)
+
+            # Ensure radius is within reasonable bounds
+            radius = max(2, min(radius, CELL_SIZE // 2))
+
+            # Calculate circle center coordinates
+            center_x = x * CELL_SIZE + CELL_SIZE // 2
+            center_y = y * CELL_SIZE + CELL_SIZE // 2
+
+            pygame.draw.circle(win, color, (center_x, center_y), radius)
 
 
 def draw(win, ants, anthill, food, objects, pheromone_grid):
@@ -335,7 +350,7 @@ def draw(win, ants, anthill, food, objects, pheromone_grid):
     win.fill(WHITE)
     anthill.draw_anthill(win)
     food.draw_food(win)
-    pheromone_grid.decay_pheromones(PHEROMONE_DECAY_RATE)
+    pheromone_grid.decay_pheromones(RED_PHEROMONE_DECAY_RATE)
     pheromone_grid.draw_grid(win)
     for ant in ants:
         ant.move_randomly(ants, pheromone_grid)
@@ -351,10 +366,10 @@ def main():
     ants = []
     max_ants = 500
     initial_food = 30
-    initial_ants = 10
+    initial_ants = 30
     anthill_x, anthill_y = 500, 500
 
-    food = Food(900, 500, 100)
+    food = Food(1100, 500, 100)
     anthill1 = Anthill(max_ants, initial_food, initial_ants, anthill_x, anthill_y)
     pheromone_grid = PheromoneGrid(WIDTH, HEIGHT)
 
