@@ -122,6 +122,7 @@ class Ant:
                 else:
                     # No pheromone trails nearby, move randomly
                     self.move_randomly(ants, pheromone_grid)
+
     def check_nearby_pheromones(self, pheromone_grid):
         nearby_pheromones = []
         cell_x = int(self.x // CELL_SIZE)
@@ -133,6 +134,9 @@ class Ant:
                 if (neighbor_x, neighbor_y) in pheromone_grid.red_drawn_cells:
                     pheromone_level = pheromone_grid.grid[neighbor_x][neighbor_y]
                     nearby_pheromones.append(((neighbor_x * CELL_SIZE + CELL_SIZE // 2, neighbor_y * CELL_SIZE + CELL_SIZE // 2), pheromone_level))
+                elif (neighbor_x, neighbor_y) in pheromone_grid.blue_drawn_cells:
+                    pheromone_level = pheromone_grid.grid[neighbor_x][neighbor_y]
+                    nearby_pheromones.append(((neighbor_x * CELL_SIZE + CELL_SIZE // 2,neighbor_y * CELL_SIZE + CELL_SIZE // 2), pheromone_level))
         return nearby_pheromones
 
     def move_towards_target(self, target, ants):
@@ -240,8 +244,8 @@ class Ant:
 
         if self.carrying_food:
             circle_radius = 5  # Adjust size as needed
-            offset_x = circle_radius * math.cos(math.radians(angle))
-            offset_y = -circle_radius * math.sin(math.radians(angle))
+            offset_x = circle_radius * math.cos(math.radians(angle + correction_angle))
+            offset_y = -circle_radius * math.sin(math.radians(angle + correction_angle))
             carrying_food_pos = (int(center_x + offset_x), int(center_y + offset_y))
             pygame.draw.circle(win, GREEN, carrying_food_pos, circle_radius)
 
@@ -329,7 +333,7 @@ class PheromoneGrid:
         self.grid = [[0 for _ in range(height)] for _ in range(width)]
         self.red_drawn_cells = []
         self.blue_drawn_cells = []
-        self.pheromone_threshold = 2
+        self.pheromone_threshold = 5
         self.type = "RED"
 
     def update_pheromones(self, x, y, amount, carrying_food=False):
