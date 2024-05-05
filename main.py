@@ -3,6 +3,8 @@ import os
 import math
 import random
 
+pygame.init()
+
 WIDTH, HEIGHT = 1600, 900
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Ant Colony Simulations")
@@ -15,7 +17,8 @@ YELLOW = (255, 255, 0)
 PURPLE = (128, 0, 128)
 ORANGE = (255, 165, 0)
 PINK = (255, 192, 203)
-BROWN = (165, 42, 42)
+BROWN = (139, 69, 19)
+DARK_BROWN = (101, 67, 33)
 CYAN = (0, 255, 255)
 MAGENTA = (255, 0, 255)
 AQUA = (100, 200, 200)
@@ -27,14 +30,16 @@ TURQUOISE = (64, 224, 208)
 ANT_SIZE = (5, 5)
 ANT = pygame.transform.scale(pygame.image.load(os.path.join('ant.png')), ANT_SIZE)
 ANT_MAX_SPEED = 1
-
+RED_PHEROMONE_DECAY_RATE = 0.993
+BLUE_PHEROMONE_DECAY_RATE = 0.9995
+ANTHILL_SENSE_RADIUS = 150 # pixels
 CELL_SIZE = 5
 
 EARTH = pygame.transform.scale(pygame.image.load(os.path.join("dirt.bmp")), (WIDTH, HEIGHT))
 
 ANTHILL = pygame.image.load(os.path.join("anthill.bmp"))
 
-# correct angle orrientation when an ant faces an object
+# correct angle orientation when an ant faces an object
 #   0 - image is looking to the right
 #  90 - image is looking up
 # 180 - image is looking to the left
@@ -49,47 +54,102 @@ class Ant:
         self.y = y
         self.type = "ant"
         self.velocity = [random.uniform(-ANT_MAX_SPEED, ANT_MAX_SPEED), random.uniform(-ANT_MAX_SPEED, ANT_MAX_SPEED)]
-        self.initial_velocity = self.velocity
         self.max_speed = ANT_MAX_SPEED
         self.sense_radius = 250
         self.angle = 0
-        self.inventory = {}
+        self.inventory = []
+        self.memory = []
         self.health = 100
-
-        # self.state = "exploring"/"delivery"/"sustenance"
+        self.carrying_food = False
+        self.state = ""         # exploring"/"delivery/"approach food
         # self.colony = None
         # self.age = 0
         # self.color = ANT_COLOR
 
-    def sense_objects_and_react(self, objects, ants):
+    def sense_objects_and_react(self, objects, ants, pheromone_grid, anthill):
         sensed_objects = []
-        for obj in objects:
-            distance_to_obj = math.hypot(obj.x - self.x, obj.y - self.y)
-            if distance_to_obj <= self.sense_radius:
-                sensed_objects.append(obj)
-        if sensed_objects:
-            for sensed_obj in sensed_objects:
-                if isinstance(sensed_obj, Food):
-                    self.move_towards_target((sensed_obj.x, sensed_obj.y), ants)
-                    print(f"Food found by {self.ant_id}")
-                    self.collect_food(sensed_obj)
-
+        if self.inventory:
+            self.go_home(pheromone_grid, anthill, ants)
         else:
-            return None
+            for obj in objects:
+                distance_to_obj = math.hypot(obj.x - self.x, obj.y - self.y)
+                if distance_to_obj <= self.sense_radius:
+                    sensed_objects.append(obj)
+            if sensed_objects:
+                for sensed_obj in sensed_objects:
+                    if isinstance(sensed_obj, Food):
+                        self.move_towards_target((sensed_obj.x, sensed_obj.y), ants)
+                        distance_to_food = math.hypot(sensed_obj.x - self.x, sensed_obj.y - self.y)
+                        if distance_to_food <= 2:
+                            self.collect_food(sensed_obj)
+            else:
+                return None
 
     def collect_food(self, food_object):
         if isinstance(food_object, Food):
-            if food_object in self.inventory:
-                self.inventory[food_object] += 1
-            else:
-                self.inventory[food_object] = 1
+            if not self.inventory:
+                self.inventory.append(food_object)
+                self.carrying_food = True
+                food_object.food_collected(1)
 
-            food_object.food_collected(1)
+    def go_home(self, pheromone_grid, anthill, ants):
+        self.state = "delivering"
+
+        anthill_x, anthill_y = anthill.x,anthill.y
+        distance_to_anthill = math.hypot(self.x - anthill_x, self.y - anthill_y)
+
+        if distance_to_anthill <= 40:
+            self.velocity = [0, 0]
+            anthill.food_storage += 1
+            self.inventory = []
+            self.carrying_food = False
+        elif distance_to_anthill <= ANTHILL_SENSE_RADIUS:
+            self.move_towards_target((anthill_x,anthill_y), ants)
+        else:
+            if self.memory:
+                # self.memory = list(dict.fromkeys(self.memory))
+                next_cell = self.memory.pop()
+                next_cell_coordinates = (next_cell[0]*CELL_SIZE,next_cell[1]*CELL_SIZE)
+
+                self.move_towards_target(next_cell_coordinates, ants)
+            else:
+                # No memory, look for pheromone trails
+                nearby_pheromones = self.check_nearby_pheromones(pheromone_grid)
+                if nearby_pheromones:
+                    # Follow the strongest pheromone trail
+                    strongest_pheromone = max(nearby_pheromones, key=lambda p: p[1])
+                    self.move_towards_target(strongest_pheromone[0], ants)
+                else:
+                    # No pheromone trails nearby, move randomly
+                    self.move_randomly(ants, pheromone_grid)
+
+    def check_nearby_pheromones(self, pheromone_grid):
+        nearby_pheromones = []
+        cell_x = int(self.x // CELL_SIZE)
+        cell_y = int(self.y // CELL_SIZE)
+        for dx in range(-1, 2):
+            for dy in range(-1, 2):
+                neighbor_x = cell_x + dx
+                neighbor_y = cell_y + dy
+                if (neighbor_x, neighbor_y) in pheromone_grid.red_drawn_cells:
+                    pheromone_level = pheromone_grid.grid[neighbor_x][neighbor_y]
+                    nearby_pheromones.append(((neighbor_x * CELL_SIZE + CELL_SIZE // 2, neighbor_y * CELL_SIZE + CELL_SIZE // 2), pheromone_level))
+                elif (neighbor_x, neighbor_y) in pheromone_grid.blue_drawn_cells:
+                    pheromone_level = pheromone_grid.grid[neighbor_x][neighbor_y]
+                    nearby_pheromones.append(((neighbor_x * CELL_SIZE + CELL_SIZE // 2,neighbor_y * CELL_SIZE + CELL_SIZE // 2), pheromone_level))
+        return nearby_pheromones
 
     def move_towards_target(self, target, ants):
         target_x, target_y = target
         dx, dy = target_x - self.x, target_y - self.y
         distance_to_target = math.hypot(dx, dy)
+
+        cell_x = int(self.x // CELL_SIZE)
+        cell_y = int(self.y // CELL_SIZE)
+
+        if self.state != "delivering":
+            self.memory.append((cell_x, cell_y))
+            # self.memory.append((self.x, self.y))
 
         if distance_to_target <= self.sense_radius:
             desired_velocity = [dx / distance_to_target, dy / distance_to_target]
@@ -114,9 +174,11 @@ class Ant:
         cell_x = int(self.x // CELL_SIZE)
         cell_y = int(self.y // CELL_SIZE)
 
-        # Update pheromones at the current cell position
-        pheromone_grid.update_pheromone(cell_x, cell_y, 1)
-        # 1% chance of direction change every frame
+        if self.state != "delivering":
+            self.memory.append((cell_x, cell_y))
+
+        pheromone_grid.update_pheromones(cell_x, cell_y, 1,self.carrying_food)
+
         if random.random() < 0.01:
             current_angle = math.atan2(-self.velocity[1], self.velocity[0])  # Current angle in radians
             min_angle = current_angle - math.pi / 2  # 90 degrees turn to the left
@@ -151,9 +213,6 @@ class Ant:
         self.x = max(0, min(self.x, WIDTH - 10))
         self.y = max(0, min(self.y, HEIGHT - 10))
 
-    def get_velocity(self):
-        return self.velocity
-
     def avoid_collision(self, ants):
         for ant in ants:
             if ant != self:
@@ -169,12 +228,6 @@ class Ant:
                     self.velocity[0] -= avoidance_force[0]
                     self.velocity[1] -= avoidance_force[1]
 
-    def get_position(self):
-        return self.x, self.y
-
-    def get_angle(self):
-        return self.angle
-
     def face_target(self, target):  # target is what the ants are facing
         # Calculate angle of rotation between target and ant
         target_x, target_y = target
@@ -182,13 +235,19 @@ class Ant:
         angle = math.degrees(math.atan2(-dy, dx)) - correction_angle
         return angle
 
-    def draw_ant(self, win):  # target is wht the ants are facing
-        # bind image within a rectangle
+    def draw_ant(self, win):
         center_x, center_y = self.x, self.y
         angle = self.angle
         rotated_ant = pygame.transform.rotate(ANT, angle)
         rotated_rect = rotated_ant.get_rect(center=(center_x, center_y))
         win.blit(rotated_ant, rotated_rect.topleft)
+
+        if self.carrying_food:
+            circle_radius = 5  # Adjust size as needed
+            offset_x = circle_radius * math.cos(math.radians(angle + correction_angle))
+            offset_y = -circle_radius * math.sin(math.radians(angle + correction_angle))
+            carrying_food_pos = (int(center_x + offset_x), int(center_y + offset_y))
+            pygame.draw.circle(win, GREEN, carrying_food_pos, circle_radius)
 
 
 class Anthill:
@@ -222,9 +281,6 @@ class Anthill:
     def draw_anthill(self, win):
         # win.blit(ANTHILL, (self.x, self.y))
 
-        BROWN = (139, 69, 19)
-        DARK_BROWN = (101, 67, 33)
-
         # Set center coordinates of the anthill
         center_x, center_y = WIDTH // 2, HEIGHT // 2
 
@@ -246,33 +302,28 @@ class Food:
         self.x = x
         self.y = y
         self.quantity = quantity
-
-    def get_position(self):
-        return self.x, self.y
-
-    def get_quantity(self):
-        return self.quantity
+        self.offsets = [(random.randint(-5, 5), random.randint(-5, 5)) for _ in range(quantity // 10)]
 
     def food_collected(self, amount):
         self.quantity = max(0, self.quantity - amount)
 
     def draw_food(self, win):
-        colours = [RED, GREEN]
-        cluster_size = self.quantity // 10
+        # Calculate the size of the large circle based on the quantity of food
+        large_circle_radius = self.quantity
 
-        # Calculate angle increment for distributing circles evenly
-        angle_increment = 2 * math.pi / cluster_size
+        # Draw the large circle
+        pygame.draw.circle(win, GREEN, (self.x, self.y), large_circle_radius)
 
-        for i in range(cluster_size):
-            colour = colours[i % len(colours)]
-            angle = i * angle_increment
-
+        # Draw individual circles for each unit of food
+        for i in range(self.quantity):
+            # Calculate the position of each individual food unit circle
+            angle = i * (2 * math.pi / self.quantity)
             circle_radius = 10
+            circle_x = self.x + int(large_circle_radius * math.cos(angle))
+            circle_y = self.y + int(large_circle_radius * math.sin(angle))
 
-            circle_x = self.x + int(circle_radius * math.cos(angle))
-            circle_y = self.y + int(circle_radius * math.sin(angle))
-
-            pygame.draw.circle(win, colour, (circle_x, circle_y), circle_radius)
+            # Draw the individual food unit circle
+            pygame.draw.circle(win, RED, (circle_x, circle_y), circle_radius)
 
 
 class PheromoneGrid:
@@ -280,23 +331,70 @@ class PheromoneGrid:
         self.width = width
         self.height = height
         self.grid = [[0 for _ in range(height)] for _ in range(width)]
+        self.red_drawn_cells = []
+        self.blue_drawn_cells = []
+        self.pheromone_threshold = 5
+        self.type = "RED"
 
-    def update_pheromone(self, x, y, amount):
+    def update_pheromones(self, x, y, amount, carrying_food=False):
         self.grid[x][y] += amount
+        if carrying_food:
+            self.type = "BLUE"
+            if (x,y) in self.red_drawn_cells:
+                self.red_drawn_cells.remove((x,y))
+            self.blue_drawn_cells.append((x, y))
 
-    def decay_pheromones(self, decay_rate):
-        for y in range(self.height):
-            for x in range(self.width):
-                self.grid[x][y] *= decay_rate
+        elif not carrying_food and self.grid[x][y] > self.pheromone_threshold:
+            self.type = "RED"
+            self.red_drawn_cells.append((x, y))
+
+    def decay_pheromones(self, red_decay_rate,blue_decay_rate):
+        for i, cell_coordinates in enumerate(self.red_drawn_cells):
+            x, y = cell_coordinates
+            self.grid[x][y] *= red_decay_rate
+            if self.grid[x][y] <= self.pheromone_threshold:
+                del self.red_drawn_cells[i]
+
+        for i, cell_coordinates in enumerate(self.blue_drawn_cells):
+            x, y = cell_coordinates
+            self.grid[x][y] *= blue_decay_rate
+            if self.grid[x][y] <= self.pheromone_threshold:
+                del self.blue_drawn_cells[i]
 
     def draw_grid(self, win):
-        for x in range(self.width):
-            for y in range(self.height):
-                pheromone_level = self.grid[x][y]
+        for cell_coordinates in self.red_drawn_cells:
+            x, y = cell_coordinates
+            pheromone_level = self.grid[x][y]
+            color = pygame.Color(255,0,0, min(round(pheromone_level), 255))
 
-                if pheromone_level > 15:
-                    colour = pygame.Color(255, 0, 0, min(pheromone_level, 255))
-                    pygame.draw.rect(win, colour, (x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE))
+            # Calculate circle radius based on pheromone level
+            radius = int(CELL_SIZE / 2 * pheromone_level / self.pheromone_threshold)
+
+            # Ensure radius is within reasonable bounds
+            radius = max(2, min(radius, CELL_SIZE // 2))
+
+            # Calculate circle center coordinates
+            center_x = x * CELL_SIZE + CELL_SIZE // 2
+            center_y = y * CELL_SIZE + CELL_SIZE // 2
+
+            pygame.draw.circle(win, color, (center_x, center_y), radius)
+
+        for cell_coordinates in self.blue_drawn_cells:
+            x, y = cell_coordinates
+            pheromone_level = self.grid[x][y]
+            color = pygame.Color(0,0,255, min(round(pheromone_level), 255))
+
+            # Calculate circle radius based on pheromone level
+            radius = int(CELL_SIZE / 2 * pheromone_level / self.pheromone_threshold)
+
+            # Ensure radius is within reasonable bounds
+            radius = max(2, min(radius, CELL_SIZE // 2))
+
+            # Calculate circle center coordinates
+            center_x = x * CELL_SIZE + CELL_SIZE // 2
+            center_y = y * CELL_SIZE + CELL_SIZE // 2
+
+            pygame.draw.circle(win, color, (center_x, center_y), radius)
 
 
 def draw(win, ants, anthill, food, objects, pheromone_grid):
@@ -304,15 +402,19 @@ def draw(win, ants, anthill, food, objects, pheromone_grid):
     win.fill(WHITE)
     anthill.draw_anthill(win)
     food.draw_food(win)
-    pheromone_grid.decay_pheromones()
+    pheromone_grid.decay_pheromones(RED_PHEROMONE_DECAY_RATE,BLUE_PHEROMONE_DECAY_RATE)
     pheromone_grid.draw_grid(win)
     for ant in ants:
         ant.move_randomly(ants, pheromone_grid)
-        ant.sense_objects_and_react(objects, ants)
-
+        ant.sense_objects_and_react(objects, ants, pheromone_grid, anthill)
         ant.draw_ant(win)
 
-    pygame.display.update()
+    # Display food counter
+    font = pygame.font.Font(None, 36)
+    text_surface = font.render(f"Food Delivered: {anthill.food_storage}", True, BLACK)
+    text_rect = text_surface.get_rect()
+    text_rect.topleft = (10, 10)  # Top left corner
+    win.blit(text_surface, text_rect)
 
 
 def main():
@@ -322,10 +424,10 @@ def main():
     ants = []
     max_ants = 500
     initial_food = 30
-    initial_ants = 20
+    initial_ants = 100
     anthill_x, anthill_y = 500, 500
 
-    food = Food(1500, 800, 100)
+    food = Food(1100, 500, 100)
     anthill1 = Anthill(max_ants, initial_food, initial_ants, anthill_x, anthill_y)
     pheromone_grid = PheromoneGrid(WIDTH, HEIGHT)
 
@@ -336,7 +438,7 @@ def main():
 
     while run:
         clock.tick(FPS)
-        print(clock.get_fps())
+        # print(clock.get_fps())
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
@@ -346,6 +448,56 @@ def main():
         pygame.display.update()
 
     pygame.quit()
+
+
+# import cProfile
+# import pstats
+#
+# # Define your main function
+# def main():
+#     clock = pygame.time.Clock()
+#     run = True
+#     objects = []
+#     ants = []
+#     max_ants = 500
+#     initial_food = 30
+#     initial_ants = 20
+#     anthill_x, anthill_y = 500, 500
+#
+#     food = Food(1500, 800, 100)
+#     anthill1 = Anthill(max_ants, initial_food, initial_ants, anthill_x, anthill_y)
+#     pheromone_grid = PheromoneGrid(WIDTH, HEIGHT)
+#
+#     objects.append(food)
+#     for new_ant in anthill1.spawn_ants(anthill1.initial_ants):
+#         ants.append(new_ant)
+#         objects.append(new_ant)
+#
+#     while run:
+#         clock.tick(FPS)
+#         # Profile the draw function
+#         with cProfile.Profile() as pr:
+#             for event in pygame.event.get():
+#                 if event.type == pygame.QUIT:
+#                     run = False
+#
+#             draw(WIN, ants, anthill1, food, objects, pheromone_grid)
+#
+#         # Print profiling results
+#         pr.print_stats()
+#
+#     pygame.quit()
+#
+# # Profile the main function
+# if __name__ == "__main__":
+#     profile_file = "profile_results.txt"
+#     cProfile.run("main()", profile_file)
+#
+#     # Analyze the profiling results
+#     with open(profile_file, "w") as f:
+#         stats = pstats.Stats(profile_file, stream=f)
+#         stats.sort_stats(pstats.SortKey.TIME)
+#         stats.print_stats()
 
 
 if __name__ == "__main__":
