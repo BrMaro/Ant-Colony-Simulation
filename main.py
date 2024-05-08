@@ -33,9 +33,9 @@ ANT = pygame.transform.scale(pygame.image.load(os.path.join('ant.png')), ANT_SIZ
 ANT_MAX_SPEED = 1.5
 RED_PHEROMONE_DECAY_RATE = 0.995
 BLUE_PHEROMONE_DECAY_RATE = 0.99999
-ANTHILL_SENSE_RADIUS = 150 # pixels
+ANTHILL_SENSE_RADIUS = 150  # pixels
 CELL_SIZE = 1
-TURN_STRENGTH = 0.2
+TURN_STRENGTH = 0.4
 
 EARTH = pygame.transform.scale(pygame.image.load(os.path.join("dirt.bmp")), (WIDTH, HEIGHT))
 
@@ -63,28 +63,44 @@ class Ant:
         self.memory = []
         self.health = 100
         self.carrying_food = False
-        self.state = ""         # exploring"/"delivery/"approach food
-        # self.colony = None
-        # self.age = 0
-        # self.color = ANT_COLOR
+        self.state = ""  # exploring"/"delivery/"approach food
+        self.returning_home = False
         self.turningAround = False
         self.turnAroundEndTime = 0
         self.turnAroundForce = [0, 0]
-
+        self.pheromone_limit = 200
+        # self.colony = None
+        # self.age = 0
+        # self.color = ANT_COLOR
 
     def sense_objects_and_react(self, objects, ants, pheromone_grid, anthill):
         cell_x = int(self.x // CELL_SIZE)
         cell_y = int(self.y // CELL_SIZE)
         sensed_objects = []
+
         if self.inventory:
+            self.state = "delivering"
             self.go_home(pheromone_grid, anthill, ants)
             pheromone_grid.update_pheromones(cell_x, cell_y, 1, self.carrying_food)
+
+        elif self.returning_home:
+            self.go_home(pheromone_grid, anthill, ants)
+
+            distance_to_anthill = math.hypot(self.x - anthill.x, self.y - anthill.y)
+
+            if len(self.memory) <= 30 or distance_to_anthill <= 30:
+                self.returning_home = False
+
+        elif len(self.memory) >= self.pheromone_limit and not self.carrying_food:
+            self.state = "threshold return"
+            self.returning_home = True
+
         else:
+            self.state = "exploring"
             pheromone_trail = self.react_to_neighbour_pheromones(pheromone_grid, type="blue")
             if pheromone_trail is not None:
-                pheromone_exact_coordinates = (pheromone_trail[0]*CELL_SIZE,pheromone_trail[1]*CELL_SIZE)
-                print(pheromone_exact_coordinates)
-                self.move_towards_target(pheromone_exact_coordinates,ants)
+                pheromone_exact_coordinates = (pheromone_trail[0] * CELL_SIZE, pheromone_trail[1] * CELL_SIZE)
+                self.move_towards_target(pheromone_exact_coordinates, ants)
                 pheromone_grid.update_pheromones(cell_x, cell_y, 1, self.carrying_food)
             else:
                 self.move_randomly(ants, pheromone_grid)
@@ -100,7 +116,7 @@ class Ant:
                     if isinstance(sensed_obj, Food):
                         self.move_towards_target((sensed_obj.x, sensed_obj.y), ants)
                         distance_to_food = math.hypot(sensed_obj.x - self.x, sensed_obj.y - self.y)
-                        if distance_to_food <= 2:
+                        if distance_to_food <= 10:
                             self.collect_food(sensed_obj)
             else:
                 return None
@@ -113,36 +129,38 @@ class Ant:
                 food_object.food_collected(1)
 
     def go_home(self, pheromone_grid, anthill, ants):
-        self.state = "delivering"
-
-        anthill_x, anthill_y = anthill.x,anthill.y
+        anthill_x, anthill_y = anthill.x, anthill.y
         distance_to_anthill = math.hypot(self.x - anthill_x, self.y - anthill_y)
 
-        if distance_to_anthill <= 40:
+        # Dropping food
+        if distance_to_anthill <= 30 and (self.state == "delivering" or self.state == "threshold return"):
             self.velocity = [0, 0]
-            anthill.food_storage += 1
             self.inventory = []
-            self.carrying_food = False
+            self.memory = []
+            self.state = "exploring"
+            if self.carrying_food:
+                anthill.food_storage += 1
+                self.carrying_food = False
+
+        # Moving to anthill if within sense radius
         elif distance_to_anthill <= ANTHILL_SENSE_RADIUS:
-            self.move_towards_target((anthill_x,anthill_y), ants)
+            self.move_towards_target((anthill_x, anthill_y), ants)
+
         else:
             if self.memory:
-                # self.memory = list(dict.fromkeys(self.memory))
                 next_cell = self.memory.pop()
-                next_cell_coordinates = (next_cell[0]*CELL_SIZE,next_cell[1]*CELL_SIZE)
-
+                next_cell_coordinates = (next_cell[0] * CELL_SIZE, next_cell[1] * CELL_SIZE)
                 self.move_towards_target(next_cell_coordinates, ants)
             else:
-                # No memory, implement the following of the red trail
                 self.move_randomly(ants, pheromone_grid)
 
     # new approach: try sampling pheromones as we move
-    def react_to_neighbour_pheromones(self, pheromone_grid,type):
+    def react_to_neighbour_pheromones(self, pheromone_grid, type):
         # Define directions: forward, left, and right based on the ant's current orientation
         if 22.5 <= self.angle <= 67.5:
-            forward_direction = (-1,-1)
-            left_direction = (-1,0)
-            right_direction = (0,-1)
+            forward_direction = (-1, -1)
+            left_direction = (-1, 0)
+            right_direction = (0, -1)
         elif 67.5 <= self.angle <= 112.5:
             forward_direction = (-1, 0)
             left_direction = (-1, 1)
@@ -183,12 +201,13 @@ class Ant:
             if 0 <= cell_x < pheromone_grid.width and 0 <= cell_y < pheromone_grid.height:
                 pheromone_level = pheromone_grid.grid[cell_x][cell_y]
                 if type == "blue":
-                    if pheromone_level < min_pheromone and (cell_x,cell_y) in pheromone_grid.blue_drawn_cells:
+                    if pheromone_level < min_pheromone and (cell_x, cell_y) in pheromone_grid.blue_drawn_cells:
                         min_pheromone = pheromone_level
-                        best_direction = (cell_x,cell_y)
+                        best_direction = (cell_x, cell_y)
         return best_direction
 
     def move_towards_target(self, target, ants):
+        print(7, self.state)
         target_x, target_y = target
         dx, dy = target_x - self.x, target_y - self.y
         distance_to_target = math.hypot(dx, dy)
@@ -196,11 +215,11 @@ class Ant:
         cell_x = int(self.x // CELL_SIZE)
         cell_y = int(self.y // CELL_SIZE)
 
-        if self.state != "delivering":
+        if self.state != "delivering" and self.state != "threshold return":
+            print(8)
             self.memory.append((cell_x, cell_y))
-            # self.memory.append((self.x, self.y))
 
-        if distance_to_target <= self.sense_radius and distance_to_target > 0:
+        if self.sense_radius >= distance_to_target > 0:
             desired_velocity = [dx / distance_to_target, dy / distance_to_target]
 
             desired_velocity[0] *= self.max_speed
@@ -219,17 +238,19 @@ class Ant:
             self.x += self.velocity[0]
             self.y += self.velocity[1]
 
-    def move_randomly(self, ants,pheromone_grid):
+    def move_randomly(self, ants, pheromone_grid):
         cell_x = int(self.x // CELL_SIZE)
         cell_y = int(self.y // CELL_SIZE)
 
         # Code for appending memory and other logic...
         pheromone_grid.update_pheromones(cell_x, cell_y, 1, self.carrying_food)
+        if self.state != "delivering" and self.state != "threshold return":
+            self.memory.append((cell_x, cell_y))
 
-        if random.random() < 0.005:
+        if random.random() < 0.01:
             current_angle = math.atan2(-self.velocity[1], self.velocity[0])  # Current angle in radians
-            min_angle = current_angle - math.pi / 2  # 90 degrees turn to the left
-            max_angle = current_angle + math.pi / 2  # 90 degrees turn to the right
+            min_angle = current_angle - math.pi / 3  # 60 degrees turn to the left
+            max_angle = current_angle + math.pi / 3  # 60 degrees turn to the right
             random_angle = random.uniform(min_angle, max_angle)
 
             random_velocity = [math.cos(random_angle), -math.sin(random_angle)]  # Reverse the sin component
@@ -281,6 +302,7 @@ class Ant:
         if time.time() > self.turnAroundEndTime:
             self.turningAround = False
             return
+
         # Apply smooth turning force
         self.velocity[0] += self.turnAroundForce[0] * TURN_STRENGTH
         self.velocity[1] += self.turnAroundForce[1] * TURN_STRENGTH
@@ -293,12 +315,18 @@ class Ant:
                 distance = math.hypot(dx, dy)
 
                 if distance < ANT_SIZE[0]:  # Adjust this value as needed
+                    # Calculate avoidance force
                     avoidance_force = [dx / distance, dy / distance]
                     avoidance_force[0] *= self.max_speed
                     avoidance_force[1] *= self.max_speed
 
+                    # Apply avoidance force
                     self.velocity[0] -= avoidance_force[0]
                     self.velocity[1] -= avoidance_force[1]
+
+                    # Smoothly steer away from the collision
+                    desired_angle = math.atan2(self.velocity[1], self.velocity[0]) + math.pi / 6  # 90 degrees turn
+                    self.start_turn_around(desired_angle)
 
     def face_target(self, target):  # target is what the ants are facing
         # Calculate angle of rotation between target and ant
@@ -412,15 +440,15 @@ class PheromoneGrid:
         self.grid[x][y] += amount
         if carrying_food:
             self.type = "BLUE"
-            if (x,y) in self.red_drawn_cells:
-                self.red_drawn_cells.remove((x,y))
+            if (x, y) in self.red_drawn_cells:
+                self.red_drawn_cells.remove((x, y))
             self.blue_drawn_cells.append((x, y))
 
         elif not carrying_food and self.grid[x][y] > self.pheromone_threshold:
             self.type = "RED"
             self.red_drawn_cells.append((x, y))
 
-    def decay_pheromones(self, red_decay_rate,blue_decay_rate):
+    def decay_pheromones(self, red_decay_rate, blue_decay_rate):
         for i, cell_coordinates in enumerate(self.red_drawn_cells):
             x, y = cell_coordinates
             self.grid[x][y] *= red_decay_rate
@@ -491,8 +519,8 @@ def draw(win, ants, anthill, food, objects, pheromone_grid):
     win.fill(WHITE)
     anthill.draw_anthill(win)
     food.draw_food(win)
-    pheromone_grid.decay_pheromones(RED_PHEROMONE_DECAY_RATE,BLUE_PHEROMONE_DECAY_RATE)
-    pheromone_grid.draw_grid(win,"square")
+    pheromone_grid.decay_pheromones(RED_PHEROMONE_DECAY_RATE, BLUE_PHEROMONE_DECAY_RATE)
+    pheromone_grid.draw_grid(win, "square")
     for ant in ants:
         ant.sense_objects_and_react(objects, ants, pheromone_grid, anthill)
         ant.draw_ant(win)
@@ -512,7 +540,7 @@ def main():
     ants = []
     max_ants = 500
     initial_food = 30
-    initial_ants = 2
+    initial_ants = 1
     anthill_x, anthill_y = 500, 500
 
     food = Food(1100, 500, 100)
@@ -536,7 +564,6 @@ def main():
         pygame.display.update()
 
     pygame.quit()
-
 
 
 if __name__ == "__main__":
