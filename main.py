@@ -34,7 +34,7 @@ ANT_MAX_SPEED = 1.5
 RED_PHEROMONE_DECAY_RATE = 0.995
 BLUE_PHEROMONE_DECAY_RATE = 0.99999
 ANTHILL_SENSE_RADIUS = 150  # pixels
-CELL_SIZE = 1
+CELL_SIZE = 2
 TURN_STRENGTH = 0.4
 
 EARTH = pygame.transform.scale(pygame.image.load(os.path.join("dirt.bmp")), (WIDTH, HEIGHT))
@@ -156,55 +156,6 @@ class Ant:
 
     # new approach: try sampling pheromones as we move
     def react_to_neighbour_pheromones(self, pheromone_grid, food):
-        # # Define directions: forward, left, and right based on the ant's current orientation
-        # if 22.5 <= self.angle <= 67.5:
-        #     forward_direction = (-1, -1)
-        #     left_direction = (-1, 0)
-        #     right_direction = (0, -1)
-        # elif 67.5 <= self.angle <= 112.5:
-        #     forward_direction = (-1, 0)
-        #     left_direction = (-1, 1)
-        #     right_direction = (-1, -1)
-        # elif 112.5 <= self.angle <= 157.5:
-        #     forward_direction = (-1, 1)
-        #     left_direction = (0, 1)
-        #     right_direction = (-1, 0)
-        # elif 157.5 <= self.angle <= 202.5:
-        #     forward_direction = (0, 1)
-        #     left_direction = (1, 1)
-        #     right_direction = (-1, 1)
-        # elif 202.5 <= self.angle <= 247.5:
-        #     forward_direction = (1, 1)
-        #     left_direction = (1, 0)
-        #     right_direction = (0, -1)
-        # elif 247.5 <= self.angle <= 292.5:
-        #     forward_direction = (1, 0)
-        #     left_direction = (1, -1)
-        #     right_direction = (1, 1)
-        # elif 292.5 <= self.angle <= 337.5:
-        #     forward_direction = (1, -1)
-        #     left_direction = (0, -1)
-        #     right_direction = (1, 0)
-        # else:
-        #     forward_direction = (0, -1)
-        #     left_direction = (-1, -1)
-        #     right_direction = (1, -1)
-        #
-        # directions = [forward_direction, left_direction, right_direction]
-        # min_pheromone = float('inf')
-        #
-        # best_direction = None
-        #
-        # for dx, dy in directions:
-        #     cell_x, cell_y = int(self.x / CELL_SIZE) + dx, int(self.y / CELL_SIZE) + dy
-        #     # Check if the neighbour cell is within the grid
-        #     if 0 <= cell_x < pheromone_grid.width and 0 <= cell_y < pheromone_grid.height:
-        #         pheromone_level = pheromone_grid.grid[cell_x][cell_y]
-        #         if type == "blue":
-        #             if pheromone_level < min_pheromone and (cell_x, cell_y) in pheromone_grid.blue_drawn_cells:
-        #                 min_pheromone = pheromone_level
-        #                 best_direction = (cell_x, cell_y)
-        # return best_direction
         nearby_cells = []
 
         cell_x = int(self.x // CELL_SIZE)
@@ -213,27 +164,44 @@ class Ant:
         sense_radius = 30
         min_pheromone = float('inf')
         min_coordinates = None
-        #
-        for dx in range(-sense_radius, sense_radius + 1):
-            for dy in range(-sense_radius, sense_radius + 1):
-                # Calculate the coordinates of the current cell
-                neighbour_x = cell_x + dx
-                neighbour_y = cell_y + dy
-                nearby_cells.append((neighbour_x, neighbour_y))
 
-        for (neighbour_x,neighbour_y) in nearby_cells:
-            # Check if the cell coordinates are within the grid boundaries
-            if 0 <= neighbour_x < pheromone_grid.width and 0 <= neighbour_y < pheromone_grid.height:
-                distance_to_cell = math.hypot((neighbour_x + 0.5) * CELL_SIZE - self.x,
-                                              (neighbour_y + 0.5) * CELL_SIZE - self.y)
-
-                if distance_to_cell <= sense_radius:
-                    if (neighbour_x, neighbour_y) in pheromone_grid.blue_drawn_cells:
-                        distance_from_food = math.hypot(neighbour_x-food.x,neighbour_y-food.y)
-                        if distance_from_food < min_pheromone:
-                            min_pheromone = distance_from_food
-                            min_coordinates = (neighbour_x,neighbour_y)
+        for cell in pheromone_grid.blue_drawn_cells:
+            neighbour_x, neighbour_y = cell[0], cell[1]
+            if math.hypot(neighbour_x - cell_x,neighbour_y-cell_y) <= sense_radius:
+                distance_from_food = math.hypot(neighbour_x-food.x,neighbour_y-food.y)
+                if distance_from_food < min_pheromone:
+                    min_pheromone = distance_from_food
+                    min_coordinates = (neighbour_x,neighbour_y)
         return min_coordinates
+        # nearby_cells = []
+        #
+        # cell_x = int(self.x // CELL_SIZE)
+        # cell_y = int(self.y // CELL_SIZE)
+        #
+        # sense_radius = 20
+        # min_distance = 255
+        # min_coordinates = None
+        #
+        # # Get the bounds of the area around the ant
+        # min_x = max(0, cell_x - sense_radius)
+        # max_x = min(pheromone_grid.width - 1, cell_x + sense_radius)
+        # min_y = max(0, cell_y - sense_radius)
+        # max_y = min(pheromone_grid.height - 1, cell_y + sense_radius)
+        #
+        # # Iterate over the cells within the bounds
+        # for neighbour_x in range(min_x, max_x + 1):
+        #     for neighbour_y in range(min_y, max_y + 1):
+        #         # Check if the cell coordinates are within the grid boundaries
+        #         if (neighbour_x, neighbour_y) in pheromone_grid.blue_drawn_cells:
+        #             distance_to_cell = math.hypot((neighbour_x + 0.5) * CELL_SIZE - self.x,
+        #                                           (neighbour_y + 0.5) * CELL_SIZE - self.y)
+        #             if distance_to_cell <= sense_radius:
+        #                 distance_from_food = math.hypot(neighbour_x - food.x, neighbour_y - food.y)
+        #                 if distance_from_food < min_distance:
+        #                     min_distance = distance_from_food
+        #                     min_coordinates = (neighbour_x, neighbour_y)
+        #
+        # return min_coordinates
 
     def move_towards_target(self, target, ants):
         target_x, target_y = target
@@ -595,6 +563,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
