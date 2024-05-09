@@ -32,7 +32,7 @@ ANT_SIZE = (5, 5)
 ANT = pygame.transform.scale(pygame.image.load(os.path.join('ant.png')), ANT_SIZE)
 ANT_MAX_SPEED = 1.5
 RED_PHEROMONE_DECAY_RATE = 0.995
-BLUE_PHEROMONE_DECAY_RATE = 0.99999
+BLUE_PHEROMONE_DECAY_RATE = 0.9999
 ANTHILL_SENSE_RADIUS = 150  # pixels
 CELL_SIZE = 2
 TURN_STRENGTH = 0.4
@@ -156,8 +156,6 @@ class Ant:
 
     # new approach: try sampling pheromones as we move
     def react_to_neighbour_pheromones(self, pheromone_grid, food):
-        nearby_cells = []
-
         cell_x = int(self.x // CELL_SIZE)
         cell_y = int(self.y // CELL_SIZE)
 
@@ -173,35 +171,6 @@ class Ant:
                     min_pheromone = distance_from_food
                     min_coordinates = (neighbour_x,neighbour_y)
         return min_coordinates
-        # nearby_cells = []
-        #
-        # cell_x = int(self.x // CELL_SIZE)
-        # cell_y = int(self.y // CELL_SIZE)
-        #
-        # sense_radius = 20
-        # min_distance = 255
-        # min_coordinates = None
-        #
-        # # Get the bounds of the area around the ant
-        # min_x = max(0, cell_x - sense_radius)
-        # max_x = min(pheromone_grid.width - 1, cell_x + sense_radius)
-        # min_y = max(0, cell_y - sense_radius)
-        # max_y = min(pheromone_grid.height - 1, cell_y + sense_radius)
-        #
-        # # Iterate over the cells within the bounds
-        # for neighbour_x in range(min_x, max_x + 1):
-        #     for neighbour_y in range(min_y, max_y + 1):
-        #         # Check if the cell coordinates are within the grid boundaries
-        #         if (neighbour_x, neighbour_y) in pheromone_grid.blue_drawn_cells:
-        #             distance_to_cell = math.hypot((neighbour_x + 0.5) * CELL_SIZE - self.x,
-        #                                           (neighbour_y + 0.5) * CELL_SIZE - self.y)
-        #             if distance_to_cell <= sense_radius:
-        #                 distance_from_food = math.hypot(neighbour_x - food.x, neighbour_y - food.y)
-        #                 if distance_from_food < min_distance:
-        #                     min_distance = distance_from_food
-        #                     min_coordinates = (neighbour_x, neighbour_y)
-        #
-        # return min_coordinates
 
     def move_towards_target(self, target, ants):
         target_x, target_y = target
@@ -508,7 +477,7 @@ class PheromoneGrid:
 
                 pygame.draw.rect(win, color, (top_left_x, top_left_y, side_length, side_length))
 
-
+text_cache = {}
 def draw(win, ants, anthill, food, objects, pheromone_grid):
     # win.blit(EARTH,(0,0))
     win.fill(GREY)
@@ -522,12 +491,18 @@ def draw(win, ants, anthill, food, objects, pheromone_grid):
 
     # Display food counter
     font = pygame.font.Font(None, 36)
-    text_surface = font.render(f"Food Delivered: {anthill.food_storage}", True, BLACK)
+    text = f"Food Delivered: {anthill.food_storage}"
+
+    # Check if the rendered text is already in the cache
+    if text not in text_cache:
+        text_surface = font.render(text, True, BLACK)
+        text_cache[text] = text_surface
+    else:
+        text_surface = text_cache[text]
+
     text_rect = text_surface.get_rect()
     text_rect.topleft = (10, 10)  # Top left corner
     win.blit(text_surface, text_rect)
-
-
 def main():
     clock = pygame.time.Clock()
     run = True
@@ -535,7 +510,7 @@ def main():
     ants = []
     max_ants = 500
     initial_food = 30
-    initial_ants = 5
+    initial_ants = 20
     anthill_x, anthill_y = 500, 500
 
     food = Food(1100, 500, 100)
@@ -563,3 +538,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
