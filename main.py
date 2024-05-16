@@ -378,41 +378,37 @@ class PheromoneGrid:
     def __init__(self, width, height):
         self.width = width
         self.height = height
-        self.grid = [[0 for _ in range(height)] for _ in range(width)]
-        self.red_drawn_cells = []
-        self.blue_drawn_cells = []
+        self.grid = {(x,y): 0 for x in range(width) for y in range(height)}
+        self.red_drawn_cells = {}
+        self.blue_drawn_cells = {}
         self.pheromone_threshold = 0.01
         self.type = "RED"
-
     def update_pheromones(self, x, y, amount, carrying_food=False):
-        self.grid[x][y] += amount
+        self.grid[(x, y)] += amount
         if carrying_food:
             self.type = "BLUE"
-            if (x, y) in self.red_drawn_cells:
-                self.red_drawn_cells.remove((x, y))
-            self.blue_drawn_cells.append((x, y))
-
-        elif not carrying_food and self.grid[x][y] > self.pheromone_threshold:
+            self.red_drawn_cells.pop((x, y), None)
+            self.blue_drawn_cells[(x, y)] = True
+        elif not carrying_food and self.grid[(x, y)] > self.pheromone_threshold:
             self.type = "RED"
-            self.red_drawn_cells.append((x, y))
+            self.red_drawn_cells[(x, y)] = True
 
     def decay_pheromones(self, red_decay_rate, blue_decay_rate):
-        for i, cell_coordinates in enumerate(self.red_drawn_cells):
-            x, y = cell_coordinates
-            self.grid[x][y] *= red_decay_rate
-            if self.grid[x][y] <= self.pheromone_threshold:
-                del self.red_drawn_cells[i]
+        self.red_drawn_cells = {cell: True for cell in self.red_drawn_cells if
+                                self.grid[cell] > self.pheromone_threshold}
+        self.blue_drawn_cells = {cell: True for cell in self.blue_drawn_cells if
+                                 self.grid[cell] > self.pheromone_threshold}
 
-        for i, cell_coordinates in enumerate(self.blue_drawn_cells):
-            x, y = cell_coordinates
-            self.grid[x][y] *= blue_decay_rate
-            if self.grid[x][y] <= self.pheromone_threshold:
-                del self.blue_drawn_cells[i]
+        for cell in self.red_drawn_cells:
+            self.grid[cell] *= red_decay_rate
+
+        for cell in self.blue_drawn_cells:
+            self.grid[cell] *= blue_decay_rate
 
     def draw_grid(self, win, shape="circle"):
-        for cell_coordinates in self.red_drawn_cells:
-            x, y = cell_coordinates
-            pheromone_level = self.grid[x][y]
+        for cell in self.red_drawn_cells:
+            x, y = cell
+            pheromone_level = self.grid[cell]
             color = pygame.Color(255, 0, 0, min(round(pheromone_level), 255))
 
             if shape == "circle":
@@ -433,11 +429,10 @@ class PheromoneGrid:
 
                 pygame.draw.rect(win, color, (top_left_x, top_left_y, side_length, side_length))
 
-        for cell_coordinates in self.blue_drawn_cells:
-            x, y = cell_coordinates
-            pheromone_level = self.grid[x][y]
+        for cell in self.blue_drawn_cells:
+            x, y = cell
+            pheromone_level = self.grid[cell]
             color = pygame.Color(0, 0, 255, min(round(pheromone_level), 255))
-
             if shape == "circle":
                 radius = int(CELL_SIZE / 2 * pheromone_level / self.pheromone_threshold)
                 radius = max(2, min(radius, CELL_SIZE // 2))
@@ -583,9 +578,9 @@ def main():
     ants = []
     max_ants = 500
     initial_food = 30
-    initial_ants = 5
+    initial_ants = 50
     distance_from_food = 800
-    num_colonies = 2  # Adjust as needed
+    num_colonies = 1  # Adjust as needed
     pheromone_grid = PheromoneGrid(WIDTH, HEIGHT)
     food = Food(WIDTH//2, HEIGHT//2, 100)
     ants, anthills, objects = generate_anthills_and_ants(initial_ants, distance_from_food, num_colonies, max_ants,initial_food,food)
