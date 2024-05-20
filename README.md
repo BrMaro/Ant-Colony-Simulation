@@ -1,6 +1,7 @@
 # Ant Colony Simulation
 
 This is a program designed to simulate the behavior of ants of a colony using Python 3 and Pygame.
+![GIF](assets/2024-05-2011-34-22-ezgif.com-optimize.gif)
 
 ## Description
 
@@ -32,14 +33,7 @@ The simulation creates multiple anthills and ants that interact with each other 
 - Food objects are placed at the center of the screen, and ants can collect food by approaching them.
 - The pheromone grid tracks the pheromone levels left by ants, influencing their movement behavior.
 - The main loop of the script controls the simulation, updating the display and handling user input.
-- 
-## 📸 Screenshots
-
-The Algorithm in action:
-
-![Screenshot](assets/screenshot.gif)
-![Screenshot](assets/screenshot2.png)
-
+  
 ## Contributing
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
