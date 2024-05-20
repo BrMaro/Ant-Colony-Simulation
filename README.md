@@ -32,6 +32,7 @@ The simulation creates multiple anthills and ants that interact with each other 
 - Each ant has attributes such as position, velocity, state, and health. They interact with objects, sense their environment, and react accordingly.
 - Anthills have a maximum number of ants they can spawn and store food collected by ants.
 - Food objects are placed at the center of the screen, and ants can collect food by approaching them.
+- Ants leaving the nest deposit "to home" (red) pheromones incase an ant going home looses its direction back home
 - if an ant discovers a food source it retraces its steps back home after collecting food while depositing "to food" (blue) pheromones to alert oother ants of food source location
 - The ants sense pheromones within a given a radius and then choose the one closest to the food which gradually optimizes to the shortest path in most cases
 - Unused paths gradually evaporate and eventually ants will only ue the shortest path
