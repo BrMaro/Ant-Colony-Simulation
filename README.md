@@ -32,9 +32,19 @@ The simulation creates multiple anthills and ants that interact with each other 
 - Each ant has attributes such as position, velocity, state, and health. They interact with objects, sense their environment, and react accordingly.
 - Anthills have a maximum number of ants they can spawn and store food collected by ants.
 - Food objects are placed at the center of the screen, and ants can collect food by approaching them.
+- if an ant discovers a food source it retraces its steps back home after collecting food while depositing "to food" (blue) pheromones to alert oother ants of food source location
+- The ants sense pheromones within a given a radius and then choose the one closest to the food which gradually optimizes to the shortest path in most cases
+- Unused paths gradually evaporate and eventually ants will only ue the shortest path
 - The pheromone grid tracks the pheromone levels left by ants, influencing their movement behavior.
 - The main loop of the script controls the simulation, updating the display and handling user input.
-  
+
+## Yet to be Implemented
+- Interactions between different nests
+- Fight or flight altercations
+- Ant spawning given food surplus
+- Evolution(Random mutations per different colonies).
+- Improve turning motion
+
 ## Contributing
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
