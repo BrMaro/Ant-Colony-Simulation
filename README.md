@@ -1,6 +1,7 @@
 # Ant Colony Simulation
 
 This is a program designed to simulate the behavior of ants of a colony using Python 3 and Pygame.
+
 ![GIF](assets/2024-05-2011-34-22-ezgif.com-optimize.gif)
 
 ## Description
